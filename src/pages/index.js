@@ -3,6 +3,7 @@ import Router from 'next/router';
 import Head from 'next/head';
 import Web3Modal from "web3modal";
 import { ethers } from "ethers";
+import makeRequestMumbai from '../chainlinkTest/request.js';
 
 export default function Login() {
   const handleLogin = async (e) => {
@@ -11,6 +12,8 @@ export default function Login() {
     const web3Modal = new Web3Modal();
     const connection = await web3Modal.connect();
     const provider = new ethers.providers.Web3Provider(connection);
+
+    makeRequestMumbai();
 
     Router.push('/home')
   }
