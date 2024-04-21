@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 
+
 const {
     SubscriptionManager,
     simulateScript,
@@ -8,12 +9,11 @@ const {
     ReturnType,
     decodeResult,
     FulfillmentCode,
-    Location
 } = require("@chainlink/functions-toolkit");
 const functionsConsumerAbi = require("./abi/functionsClient.json");
 const ethers = require("ethers");
 
-const consumerAddress = "0xA16F4E891e1b2537cA25C51760C187C2b3e79a8E"; // REPLACE this with your Functions consumer address
+const consumerAddress = "0x600D3E52e9C6442fcdaDd0a02aF1222FE708836F"; // REPLACE this with your Functions consumer address
 const subscriptionId = 1833; // REPLACE this with your subscription ID
 
 
@@ -21,7 +21,7 @@ const subscriptionId = 1833; // REPLACE this with your subscription ID
 const makeRequestMumbai = async () => {
     // hardcoded for Polygon Mumbai
     const routerAddress = "0xb83E47C2bC239B3bf370bc41e1459A34b41238D0";
-    const linkTokenAddress = "0x779877A7B0D9E8603169DdbD7836e478b4624789";
+    const linkTokenAddress = "0x326C977E6efc84E512bB9C30f76E30c160eD06FB";
     const donId = "fun-ethereum-sepolia-1";
     const explorerUrl = "https://mumbai.polygonscan.com";
 
@@ -63,7 +63,7 @@ const makeRequestMumbai = async () => {
             "private key not provided - check your environment variables"
         );
 
-    const rpcUrl = "https://eth-sepolia.g.alchemy.com/v2/CEF87mGhaWQ0JjkM7-zekgygM-ABZVdg" // || process.env.POLYGON_MUMBAI_RPC_URL; // fetch mumbai RPC URL
+    const rpcUrl = "https://polygon-mumbai.g.alchemy.com/v2/BPoTGh0MEe1YsKqMIPKPZcj9rQTL8BG2" // || process.env.POLYGON_MUMBAI_RPC_URL; // fetch mumbai RPC URL
     console.log("rpcUrl", rpcUrl)
     // https://rpc-mumbai.maticvigil.com
     if (!rpcUrl)
@@ -136,9 +136,9 @@ const makeRequestMumbai = async () => {
     //////// MAKE REQUEST ////////
 
     console.log("\nMake request...");
-    // if (true) {
-    //     return
-    // }
+    if (true) {
+        return
+    }
 
     const functionsConsumer = new ethers.Contract(
         consumerAddress,
@@ -149,15 +149,14 @@ const makeRequestMumbai = async () => {
     // Actual transaction call
     const transaction = await functionsConsumer.sendRequest(
         source, // source
-        Location.DONHosted,
-        // "0x", // user hosted secrets - encryptedSecretsUrls - empty in this example
-        "0x", // don hosted secrets - slot ID - empty in this example
-        // 0, // don hosted secrets - version - empty in this example
+        "0x", // user hosted secrets - encryptedSecretsUrls - empty in this example
+        0, // don hosted secrets - slot ID - empty in this example
+        0, // don hosted secrets - version - empty in this example
         args,
         [], // bytesArgs - arguments can be encoded off-chain to bytes.
         subscriptionId,
         gasLimit,
-        // ethers.utils.formatBytes32String(donId) // jobId is bytes32 representation of donId
+        ethers.utils.formatBytes32String(donId) // jobId is bytes32 representation of donId
     );
 
     // Log transaction details
