@@ -1,10 +1,11 @@
 import React from "react";
 import Web3Modal from "web3modal";
 import { ethers } from "ethers";
-import { contractAddress, xKodeAddress } from "../../blockchain/config";
+import { contractAddress, codesafeAddress } from "../../blockchain/config";
 import JobPortal from "../../blockchain/artifacts/contracts/JobPortal.sol/JobPortal.json";
-import xKode from "../../blockchain/artifacts/contracts/xKode.sol/xKode.json";
+import xCode from "../../blockchain/artifacts/contracts/xCode.sol/xCode.json";
 import { uploadToIPFS } from "../utils/ipfs";
+import sendNotif from "@/utils/notifications";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import Router from "next/router";
@@ -47,7 +48,7 @@ const Modal = ({
       await tx.wait();
 
       console.log("Task created successfully! tokensa deduction....");
-      const token = new ethers.Contract(xKodeAddress, xKode.abi, signer);
+      const token = new ethers.Contract(codesafeAddress, xCode.abi, signer);
       const address = await signer.getAddress();
       console.log("tokn " + token);
       let transaction = await token.burn(
@@ -66,6 +67,13 @@ const Modal = ({
       setTimeout(() => {
         Router.push(`/myprojectview/${id}`);
       }, 5000);
+
+      // Send notification to manager
+      await sendNotif(
+        [await signer.getAddress()],
+        `Task ${tasksData.taskName} is added to zKode!`,
+        `Task ${tasksData.taskName} is now available for developers `
+      );
       setModalOpen(false);
     } catch (err) {
       console.log("Error: ", err);

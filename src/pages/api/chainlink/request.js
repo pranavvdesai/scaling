@@ -24,141 +24,139 @@ const explorerUrl = "https://mumbai.polygonscan.com";
 
 // hardcoded for Polygon Mumbai
 export default async function handler(req, res) {
-  const body = req.body;
 
-  const source = body.source;
-  const args = body.args;
-  const gasLimit = 300000;
+    const body = req.body;
 
-  // Initialize ethers signer and provider to interact with the contracts onchain
-  const privateKey = process.env.PRIV_KEY; // fetch PRIVATE_KEY
-  if (!privateKey)
-    throw new Error(
-      "private key not provided - check your environment variables"
+    const source = body.source;
+    const args = body.args;
+    const gasLimit = 300000;
+
+    // Initialize ethers signer and provider to interact with the contracts onchain
+    const privateKey = "5d103af35d23716147530f88a1c4cc88502a38709ceae990dc8ee383a3fa9678"; // fetch PRIVATE_KEY
+    if (!privateKey)
+        throw new Error(
+            "private key not provided - check your environment variables"
+        );
+
+    const rpcUrl = "https://eth-sepolia.g.alchemy.com/v2/CEF87mGhaWQ0JjkM7-zekgygM-ABZVdg" // || process.env.POLYGON_MUMBAI_RPC_URL; // fetch mumbai RPC URL
+    console.log("rpcUrl", rpcUrl)
+    if (!rpcUrl)
+        throw new Error(`rpcUrl not provided  - check your environment variables`);
+
+    // console.log(ethers)
+
+    // const network = { name: "maticmum", chainId: 80001 }
+    const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+
+    const wallet = new ethers.Wallet(privateKey);
+    const signer = wallet.connect(provider); // create ethers signer for signing transactions
+
+    console.log("\nMaking request...");
+
+    const functionsConsumer = new ethers.Contract(
+        consumerAddress,
+        functionsConsumerAbi,
+        signer
     );
 
-  const rpcUrl =
-    "https://eth-sepolia.g.alchemy.com/v2/CEF87mGhaWQ0JjkM7-zekgygM-ABZVdg"; // || process.env.POLYGON_MUMBAI_RPC_URL; // fetch mumbai RPC URL
-  console.log("rpcUrl", rpcUrl);
-  if (!rpcUrl)
-    throw new Error(`rpcUrl not provided  - check your environment variables`);
+    // Actual transaction call
+    const transaction = await functionsConsumer.sendRequest(
+        source, // source
+        Location.DONHosted,
+        "0x", // don hosted secrets - slot ID - empty in this example
+        args,
+        [], // bytesArgs - arguments can be encoded off-chain to bytes.
+        subscriptionId,
+        gasLimit,
+        // ethers.utils.formatBytes32String(donId) // jobId is bytes32 representation of donId
+    );
 
-  // console.log(ethers)
+    // Log transaction details
+    console.log(
+        `\n✅ Functions request sent! Transaction hash ${transaction.hash}. Waiting for a response...`
+    );
 
-  // const network = { name: "maticmum", chainId: 80001 }
-  const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+    console.log(
+        `See your request in the explorer ${explorerUrl}/tx/${transaction.hash}`
+    );
 
-  const wallet = new ethers.Wallet(privateKey);
-  const signer = wallet.connect(provider); // create ethers signer for signing transactions
+    const responseListener = new ResponseListener({
+        provider: provider,
+        functionsRouterAddress: routerAddress,
+    }); // Instantiate a ResponseListener object to wait for fulfillment.
+    (async () => {
+        try {
+            const response = await new Promise((resolve, reject) => {
+                responseListener
+                    .listenForResponseFromTransaction(transaction.hash)
+                    .then((response) => {
+                        resolve(response); // Resolves once the request has been fulfilled.
+                    })
+                    .catch((error) => {
+                        reject(error); // Indicate that an error occurred while waiting for fulfillment.
+                    });
+            });
 
-  console.log("\nMaking request...");
+            const fulfillmentCode = response.fulfillmentCode;
 
-  const functionsConsumer = new ethers.Contract(
-    consumerAddress,
-    functionsConsumerAbi,
-    signer
-  );
+            if (fulfillmentCode === FulfillmentCode.FULFILLED) {
+                console.log(
+                    `\n✅ Request ${response.requestId
+                    } successfully fulfilled. Cost is ${ethers.utils.formatEther(
+                        response.totalCostInJuels
+                    )} LINK.Complete reponse: `,
+                    response
+                );
+            } else if (fulfillmentCode === FulfillmentCode.USER_CALLBACK_ERROR) {
+                console.log(
+                    `\n⚠️ Request ${response.requestId
+                    } fulfilled. However, the consumer contract callback failed. Cost is ${ethers.utils.formatEther(
+                        response.totalCostInJuels
+                    )} LINK.Complete reponse: `,
+                    response
+                );
+            } else {
+                console.log(
+                    `\n❌ Request ${response.requestId
+                    } not fulfilled. Code: ${fulfillmentCode}. Cost is ${ethers.utils.formatEther(
+                        response.totalCostInJuels
+                    )} LINK.Complete reponse: `,
+                    response
+                );
+            }
 
-  // Actual transaction call
-  const transaction = await functionsConsumer.sendRequest(
-    source, // source
-    Location.DONHosted,
-    "0x", // don hosted secrets - slot ID - empty in this example
-    args,
-    [], // bytesArgs - arguments can be encoded off-chain to bytes.
-    subscriptionId,
-    gasLimit
-    // ethers.utils.formatBytes32String(donId) // jobId is bytes32 representation of donId
-  );
+            const errorString = response.errorString;
+            if (errorString) {
+                console.log(`\n❌ Error during the execution: `, errorString);
+            } else {
+                const responseBytesHexstring = response.responseBytesHexstring;
+                if (ethers.utils.arrayify(responseBytesHexstring).length > 0) {
+                    const decodedResponse = decodeResult(
+                        response.responseBytesHexstring,
+                        ReturnType.uint256
+                    );
+                    console.log(
+                        `\n✅ Decoded response to ${ReturnType.uint256}: `,
+                        decodedResponse
+                    );
+                    return res.status(200).json({
+                        message: "success",
+                        data: Number(decodedResponse)
+                    })
+                }
+            }
 
-  // Log transaction details
-  console.log(
-    `\n✅ Functions request sent! Transaction hash ${transaction.hash}. Waiting for a response...`
-  );
+            return res.status(500).json({
+                message: "error",
+                data: "error in response"
+            })
 
-  console.log(
-    `See your request in the explorer ${explorerUrl}/tx/${transaction.hash}`
-  );
-
-  const responseListener = new ResponseListener({
-    provider: provider,
-    functionsRouterAddress: routerAddress,
-  }); // Instantiate a ResponseListener object to wait for fulfillment.
-  (async () => {
-    try {
-      const response = await new Promise((resolve, reject) => {
-        responseListener
-          .listenForResponseFromTransaction(transaction.hash)
-          .then((response) => {
-            resolve(response); // Resolves once the request has been fulfilled.
-          })
-          .catch((error) => {
-            reject(error); // Indicate that an error occurred while waiting for fulfillment.
-          });
-      });
-
-      const fulfillmentCode = response.fulfillmentCode;
-
-      if (fulfillmentCode === FulfillmentCode.FULFILLED) {
-        console.log(
-          `\n✅ Request ${
-            response.requestId
-          } successfully fulfilled. Cost is ${ethers.utils.formatEther(
-            response.totalCostInJuels
-          )} LINK.Complete reponse: `,
-          response
-        );
-      } else if (fulfillmentCode === FulfillmentCode.USER_CALLBACK_ERROR) {
-        console.log(
-          `\n⚠️ Request ${
-            response.requestId
-          } fulfilled. However, the consumer contract callback failed. Cost is ${ethers.utils.formatEther(
-            response.totalCostInJuels
-          )} LINK.Complete reponse: `,
-          response
-        );
-      } else {
-        console.log(
-          `\n❌ Request ${
-            response.requestId
-          } not fulfilled. Code: ${fulfillmentCode}. Cost is ${ethers.utils.formatEther(
-            response.totalCostInJuels
-          )} LINK.Complete reponse: `,
-          response
-        );
-      }
-
-      const errorString = response.errorString;
-      if (errorString) {
-        console.log(`\n❌ Error during the execution: `, errorString);
-      } else {
-        const responseBytesHexstring = response.responseBytesHexstring;
-        if (ethers.utils.arrayify(responseBytesHexstring).length > 0) {
-          const decodedResponse = decodeResult(
-            response.responseBytesHexstring,
-            ReturnType.uint256
-          );
-          console.log(
-            `\n✅ Decoded response to ${ReturnType.uint256}: `,
-            decodedResponse
-          );
-          return res.status(200).json({
-            message: "success",
-            data: Number(decodedResponse),
-          });
+        } catch (error) {
+            console.error("Error listening for response:", error);
+            return res.status(500).json({
+                message: "error",
+                data: "error listening for response"
+            })
         }
-      }
-
-      return res.status(500).json({
-        message: "error",
-        data: "error in response",
-      });
-    } catch (error) {
-      console.error("Error listening for response:", error);
-      return res.status(500).json({
-        message: "error",
-        data: "error listening for response",
-      });
-    }
-  })();
+    })();
 };
